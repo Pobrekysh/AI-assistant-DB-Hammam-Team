@@ -46,11 +46,20 @@ def execute_query(sql: str, limit: int = DEFAULT_LIMIT) -> dict:
         rows_as_lists = [[row[col] for col in columns] for row in rows]
 
         # Приводим несериализуемые типы к строкам
-        rows_serializable = [
-            [str(v) if v is not None and not isinstance(v, (int, float, str, bool)) else v
-             for v in row]
-            for row in rows_as_lists
-        ]
+        from decimal import Decimal
+        rows_serializable = []
+        for row in rows_as_lists:
+            new_row = []
+            for v in row:
+                if v is None:
+                    new_row.append(v)
+                elif isinstance(v, Decimal):
+                    new_row.append(round(float(v), 2))
+                elif not isinstance(v, (int, float, str, bool)):
+                    new_row.append(str(v))
+                else:
+                    new_row.append(v)
+            rows_serializable.append(new_row)
 
         conn.rollback()  # ничего не меняли
         return {"columns": columns, "rows": rows_serializable, "error": None}
