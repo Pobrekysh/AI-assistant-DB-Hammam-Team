@@ -120,13 +120,7 @@ for msg in st.session_state.messages:
                 st.code(data["sql"], language="sql")
             if data.get("rows"):
                 st.markdown("**Результат:**")
-                st.dataframe(
-                    data["rows"],
-                    column_config={
-                        i: col for i, col in enumerate(data["columns"])
-                    } if data.get("columns") else None,
-                    use_container_width=True
-                )
+                st.dataframe(data["rows"], use_container_width=True)
             if data.get("explanation"):
                 with st.expander("💡 Как построен запрос"):
                     st.write(data["explanation"])
