@@ -5,8 +5,8 @@
 ## Команда
 **Hammam_Team**
 - **Pobrekysh** — фронтенд, интеграция, Docker, Ngrok
-- **Susliqq** — база данных, SQL, безопасность
-- **Billy-Debil** — бэкенд, LLM, валидация
+- **Billy-Debil** — база данных, SQL, безопасность
+- **Susliqq** — бэкенд, LLM, валидация
 
 ## Стек
 
