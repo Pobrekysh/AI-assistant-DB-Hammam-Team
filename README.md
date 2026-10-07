@@ -11,12 +11,15 @@
 ## Стек
 
 - PostgreSQL 15
-- Python 3.11
+- Python 3.13
 - FastAPI (бэкенд)
 - Streamlit (фронтенд)
 - OpenAI / GigaChat (LLM)
 
-## Быстрый старт
+## Быстрый старт 
+https://ai-hammam-team.streamlit.app/
+
+Или для локального использования:
 
 ```bash
 # 1. Клонировать репозиторий

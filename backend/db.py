@@ -1,5 +1,3 @@
-<<<<<<< Updated upstream
-=======
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -42,8 +40,7 @@ def execute_query(sql: str, limit: int = DEFAULT_LIMIT) -> dict:
         cursor.execute(sql_clean)
 
         rows = cursor.fetchall()
-        columns = [desc[0]
-                   for desc in cursor.description] if cursor.description else []
+        columns = [desc[0] for desc in cursor.description] if cursor.description else []
         rows_as_lists = [[row[col] for col in columns] for row in rows]
 
         # Приводим несериализуемые типы к строкам
@@ -98,4 +95,3 @@ def get_schema() -> str:
     finally:
         if conn:
             conn.close()
->>>>>>> Stashed changes
