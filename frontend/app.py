@@ -3,6 +3,8 @@ import requests
 import os
 from dotenv import load_dotenv
 
+from logger import log_question, log_answer
+
 # Загружаем переменные окружения из .env
 load_dotenv()
 
@@ -94,13 +96,14 @@ def ask(question: str) -> dict:
 # ===== Боковая панель =====
 with st.sidebar:
     st.header("⚙️ Настройки")
-    st.write(f"**Режим:** {'🧪 MOCK (заглушка)' if MOCK_MODE else '🔌 REAL (бэкенд)'}")
+    st.write(
+        f"**Режим:** {'🧪 MOCK (заглушка)' if MOCK_MODE else '🔌 REAL (бэкенд)'}")
     st.write(f"**Backend URL:** `{BACKEND_URL}`")
-    
+
     if st.button("🗑️ Очистить историю"):
         st.session_state.messages = []
         st.rerun()
-    
+
     st.divider()
     st.caption("Прототип для чемпионата Газпромбанка")
 
@@ -127,19 +130,29 @@ for msg in st.session_state.messages:
 
 
 # ===== Поле ввода =====
-question = st.chat_input("Введите вопрос, например: Сколько заявлений на Экономику в 2026 году?")
+question = st.chat_input(
+    "Введите вопрос, например: Сколько заявлений на Экономику в 2026 году?")
 
 if question:
     # 1. Добавляем сообщение пользователя
     st.session_state.messages.append({"role": "user", "content": question})
     with st.chat_message("user"):
         st.write(question)
-    
+
+    log_question(question)
+
     # 2. Показываем индикатор загрузки и получаем ответ
     with st.chat_message("assistant"):
         with st.spinner("Ассистент думает..."):
             data = ask(question)
-        
+
+        log_answer(
+            question,
+            data.get("sql", ""),
+            len(data.get("rows", [])),
+            data.get("error")
+        )
+
         # 3. Отображаем ответ
         if data.get("error"):
             st.error(f"❌ {data['error']}")
@@ -158,6 +171,5 @@ if question:
         if data.get("explanation"):
             with st.expander("💡 Как построен запрос"):
                 st.write(data["explanation"])
-    
     # 4. Сохраняем ответ в историю
     st.session_state.messages.append({"role": "assistant", "content": data})
