@@ -12,6 +12,7 @@ DB_CONFIG = {
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD"),
     "connect_timeout": 5,
+    "client_encoding": "utf8",
 }
 
 STATEMENT_TIMEOUT_MS = 5000  # 5 секунд
@@ -27,6 +28,7 @@ def execute_query(sql: str, limit: int = DEFAULT_LIMIT) -> dict:
     conn = None
     try:
         conn = psycopg2.connect(**DB_CONFIG)
+        conn.set_client_encoding('UTF8')
         conn.set_session(readonly=True, autocommit=False)
 
         cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -72,6 +74,7 @@ def get_schema() -> str:
     conn = None
     try:
         conn = psycopg2.connect(**DB_CONFIG)
+        conn.set_client_encoding('UTF8')
         cursor = conn.cursor()
         cursor.execute("""
             SELECT table_name, column_name, data_type
