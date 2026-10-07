@@ -2,14 +2,18 @@ import streamlit as st
 import requests
 import os
 from logger import log_question, log_answer
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 def get_config(key: str, default: str = "") -> str:
     """Читает из st.secrets (облако) или os.environ (локально)."""
     try:
         return st.secrets[key]
-    except (KeyError, FileNotFoundError):
-        return os.getenv(key, default)
+    except Exception:
+        pass
+    return os.getenv(key, default)
 
 
 # Адрес бэкенда. Если Susliqq ещё не поднял /ask — используем MOCK_MODE
