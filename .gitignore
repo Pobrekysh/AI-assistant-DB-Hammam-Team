@@ -1,0 +1,56 @@
+# ===== Секреты =====
+.env
+.env.local
+*.key
+*.pem
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ===== Виртуальные окружения =====
+venv/
+env/
+ENV/
+.venv/
+virtualenv/
+
+# ===== Тесты и кэш =====
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+
+# ===== Логи =====
+logs/*.log
+*.log
+
+# ===== IDE =====
+.vscode/
+.cursor/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+
+# ===== Данные =====
+*.sqlite
+*.sqlite3
+*.db
+data/
