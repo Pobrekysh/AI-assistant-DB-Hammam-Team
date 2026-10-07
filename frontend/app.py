@@ -1,16 +1,20 @@
 import streamlit as st
 import requests
 import os
-from dotenv import load_dotenv
-
 from logger import log_question, log_answer
 
-# Загружаем переменные окружения из .env
-load_dotenv()
+
+def get_config(key: str, default: str = "") -> str:
+    """Читает из st.secrets (облако) или os.environ (локально)."""
+    try:
+        return st.secrets[key]
+    except (KeyError, FileNotFoundError):
+        return os.getenv(key, default)
+
 
 # Адрес бэкенда. Если Susliqq ещё не поднял /ask — используем MOCK_MODE
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
-MOCK_MODE = os.getenv("MOCK_MODE", "true").lower() == "true"
+BACKEND_URL = get_config("BACKEND_URL", "http://localhost:8000")
+MOCK_MODE = get_config("MOCK_MODE", "true").lower() == "true"
 
 # Настройка страницы
 st.set_page_config(
@@ -69,6 +73,16 @@ def real_ask(question: str) -> dict:
             "columns": [],
             "rows": [],
             "error": "Бэкенд не ответил за 30 секунд. Возможно, запрос слишком тяжёлый.",
+            "explanation": None,
+            "page": 1,
+            "total_pages": 1
+        }
+    except requests.exceptions.HTTPError as e:
+        return {
+            "sql": None,
+            "columns": [],
+            "rows": [],
+            "error": f"Бэкенд вернул ошибку {e.response.status_code}: {e.response.text[:200]}",
             "explanation": None,
             "page": 1,
             "total_pages": 1
