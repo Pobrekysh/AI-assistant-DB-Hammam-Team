@@ -43,7 +43,7 @@ def ask(req: AskRequest):
 
     log_question(q)
 
-    # 1. LLM → SQL
+    # 1. LLM -> SQL
     schema = get_schema()
     llm = question_to_sql(q, schema)
     if llm["error"]:
