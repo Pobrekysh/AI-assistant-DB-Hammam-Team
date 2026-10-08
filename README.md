@@ -10,11 +10,11 @@
 
 ## Стек
 
-- PostgreSQL 15
+- PostgreSQL 18
 - Python 3.13
 - FastAPI (бэкенд)
 - Streamlit (фронтенд)
-- OpenAI / GigaChat (LLM)
+- GigaChat (LLM)
 
 ## Быстрый старт 
 
