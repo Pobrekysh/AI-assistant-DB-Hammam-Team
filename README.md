@@ -4,7 +4,7 @@
 
 ## Команда
 **Hammam_Team**
-- **Pobrekysh(кэп)** — фронтенд, интеграция, Docker, Ngrok
+- **Pobrekysh** — фронтенд, интеграция, Git
 - **Billy-Debil** — база данных, SQL, безопасность
 - **Susliqq** — бэкенд, LLM, валидация
 
