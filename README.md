@@ -4,22 +4,19 @@
 
 ## Команда
 **Hammam_Team**
-- **Pobrekysh(кэп)** — фронтенд, интеграция, Docker, Ngrok
+- **Pobrekysh** — фронтенд, интеграция, Git
 - **Billy-Debil** — база данных, SQL, безопасность
 - **Susliqq** — бэкенд, LLM, валидация
 
 ## Стек
 
-- PostgreSQL 15
+- PostgreSQL 18
 - Python 3.13
 - FastAPI (бэкенд)
 - Streamlit (фронтенд)
-- OpenAI / GigaChat (LLM)
+- GigaChat (LLM)
 
 ## Быстрый старт 
-https://ai-hammam-team.streamlit.app/
-
-Или для локального использования:
 
 ```bash
 # 1. Клонировать репозиторий
