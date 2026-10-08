@@ -2,7 +2,10 @@ import re
 from typing import Tuple
 
 # только эти таблицы разрешены
-OK_TABLES = {"faculties", "teachers", "student_groups", "applications", "grades"}
+OK_TABLES = {
+    "faculties", "departments", "teachers", "subjects",
+    "teacher_subjects", "student_groups", "applications", "grades",
+}
 
 # системные и чужие — запрещены
 BAD_TABLES = {"users", "passwords", "auth", "sessions", "personal_data",
@@ -10,11 +13,14 @@ BAD_TABLES = {"users", "passwords", "auth", "sessions", "personal_data",
 
 # password / passport_data не включены — это PII
 OK_COLUMNS = {
-    "faculties":      {"id", "name"},
-    "teachers":       {"id", "full_name", "department"},
-    "student_groups": {"id", "group_name", "faculty_id"},
-    "applications":   {"id", "program_name", "application_year", "status"},
-    "grades":         {"id", "group_id", "subject", "grade", "semester"},
+    "faculties":        {"id", "name"},
+    "departments":      {"id", "name", "faculty_id"},
+    "teachers":         {"id", "full_name", "department_id"},
+    "subjects":         {"id", "name", "department_id"},
+    "teacher_subjects": {"teacher_id", "subject_id"},
+    "student_groups":   {"id", "group_name", "faculty_id"},
+    "applications":     {"id", "program_name", "application_year", "status"},
+    "grades":           {"id", "group_id", "subject", "grade", "semester"},
 }
 
 # ищем подстрокой — ловит и "drop", и "drop_table"
@@ -88,14 +94,20 @@ def get_tables(low: str) -> set:
 
 
 def get_aliases(low: str) -> set:
-    """FROM grades g / JOIN student_groups sg → {g, sg}"""
+    """FROM grades g / JOIN student_groups sg / AVG(grade) AS avg → {g, sg, avg}"""
     a = set()
+
+    # алиасы таблиц: FROM <table> <alias>
     for m in re.finditer(r"\b(?:from|join)\s+[a-z_][a-z0-9_]*\s+([a-z_][a-z0-9_]*)", low):
         alias = m.group(1)
         if alias not in SQL_WORDS:
             a.add(alias)
-    return a
 
+    # алиасы колонок: <expr> AS <alias>
+    for m in re.finditer(r"\bas\s+([a-z_][a-z0-9_]*)", low):
+        a.add(m.group(1))
+
+    return a
 
 def get_words(low: str) -> set:
     # убираем строки в кавычках — это значения, не колонки
