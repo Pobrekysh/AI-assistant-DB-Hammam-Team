@@ -67,7 +67,7 @@ def render(d: dict):
             st.dataframe(d["rows"], use_container_width=True, hide_index=True)
     if d.get("explanation"):
         with st.expander("💡 Как построен запрос"):
-            st.write(d["explanation"])
+            st.text(d["explanation"])
 
 
 # боковая панель
