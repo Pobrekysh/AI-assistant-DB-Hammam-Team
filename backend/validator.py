@@ -1,6 +1,7 @@
 import re
 from typing import Tuple
 
+# Таблицы, к которым РАЗРЕШЕНО обращаться
 WHITELIST_TABLES = {
     "faculties",
     "teachers",
@@ -9,6 +10,7 @@ WHITELIST_TABLES = {
     "grades",
 }
 
+# Таблицы, к которым НЕЛЬЗЯ
 BLACKLIST_TABLES = {
     "users", "passwords", "auth", "sessions",
     "personal_data", "pg_shadow", "pg_user",
@@ -24,6 +26,7 @@ ALLOWED_COLUMNS = {
     "grades": {"id", "group_id", "subject", "grade", "semester"},
 }
 
+# Запрещённые ключевые слова
 FORBIDDEN_KEYWORDS = {
     "insert", "update", "delete", "drop", "alter", "create",
     "truncate", "grant", "revoke", "copy", "vacuum", "analyze",
@@ -32,6 +35,7 @@ FORBIDDEN_KEYWORDS = {
     "--", "/*", "*/",
 }
 
+# SQL-ключевые слова, которые не являются колонками
 SQL_KEYWORDS = {
     "select", "from", "where", "join", "on", "and", "or",
     "as", "limit", "group", "by", "order", "desc", "asc",
@@ -43,6 +47,12 @@ SQL_KEYWORDS = {
 
 
 def validate_sql(sql: str) -> Tuple[bool, str]:
+    """
+    Проверяет SQL на безопасность.
+    Возвращает:
+        (True, "") — запрос безопасен
+        (False, "причина") — запрос отклонён
+    """
     if not sql or not sql.strip():
         return False, "Пустой SQL-запрос"
 
@@ -58,11 +68,11 @@ def validate_sql(sql: str) -> Tuple[bool, str]:
         if kw in sql_lower:
             return False, f"Обнаружено запрещённое выражение: {kw}"
 
-    # 3. Нет множественных запросов
+    # 3. Нет множественных запросов через ;
     if sql_lower.rstrip(";").count(";") > 0:
         return False, "Множественные SQL-запросы запрещены"
 
-    # 4. Проверка таблиц
+    # 4. Проверка таблиц на whitelist/blacklist
     tables = extract_tables(sql_lower)
     if not tables:
         return False, "Не удалось определить таблицы в запросе"
@@ -73,7 +83,7 @@ def validate_sql(sql: str) -> Tuple[bool, str]:
         if t not in WHITELIST_TABLES:
             return False, f"Таблица '{t}' не входит в разрешённый список"
 
-    # 5. Проверка колонок
+    # 5. Проверка колонок на whitelist
     allowed = set()
     for t in tables:
         allowed |= ALLOWED_COLUMNS.get(t, set())
@@ -97,6 +107,7 @@ def validate_sql(sql: str) -> Tuple[bool, str]:
 
 
 def extract_tables(sql_lower: str) -> set:
+    """Вытаскивает имена таблиц после FROM и JOIN."""
     tables = set()
     for m in re.finditer(r"\bfrom\s+([a-z_][a-z0-9_]*)", sql_lower):
         tables.add(m.group(1))
