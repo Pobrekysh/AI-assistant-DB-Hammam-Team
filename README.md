@@ -17,9 +17,6 @@
 - OpenAI / GigaChat (LLM)
 
 ## Быстрый старт 
-https://ai-hammam-team.streamlit.app/
-
-Или для локального использования:
 
 ```bash
 # 1. Клонировать репозиторий
