@@ -1,7 +1,11 @@
 -- Полный скрипт инициализации, генерации данных и настройки безопасности
 
 -- 0. Устанавливаем ограничение времени выполнения запроса (защита от зависания/DDoS)
+<<<<<<< Updated upstream
 ALTER DATABASE university_db SET statement_timeout = '5s';
+=======
+
+>>>>>>> Stashed changes
 
 -- 1. Удаляем таблицы, если они существовали (для чистого перезапуска)
 DROP TABLE IF EXISTS grades CASCADE;
@@ -115,6 +119,7 @@ FROM generate_series(1, 450) AS i;
 
 
 -- 13. БЕЗОПАСНОСТЬ: Создание пользователя, ограничение таймаута и точечная выдача прав
+<<<<<<< Updated upstream
 CREATE USER app_user WITH PASSWORD 'secure_password_123';
 
 GRANT CONNECT ON DATABASE university_db TO app_user;
@@ -129,3 +134,5 @@ GRANT SELECT (id, full_name, department, password) ON teachers TO app_user;
 GRANT SELECT (id, group_name, faculty_id) ON student_groups TO app_user;
 GRANT SELECT (id, program_name, application_year, status) ON applications TO app_user;
 GRANT SELECT (id, group_id, subject, grade, semester, password) ON grades TO app_user;
+=======
+>>>>>>> Stashed changes
