@@ -117,7 +117,7 @@ FROM generate_series(1, 450) AS i;
 -- 13. БЕЗОПАСНОСТЬ: Создание пользователя, ограничение таймаута и точечная выдача прав
 CREATE USER app_user WITH PASSWORD 'secure_password_123';
 
-GRANT CONNECT ON DATABASE university_db_o51q TO app_user;
+GRANT CONNECT ON DATABASE university_db TO app_user;
 GRANT USAGE ON SCHEMA public TO app_user;
 
 -- Принудительно устанавливаем statement_timeout для конкретной роли app_user (на всякий случай)
