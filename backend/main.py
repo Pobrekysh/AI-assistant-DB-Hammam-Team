@@ -89,21 +89,51 @@ def _explain(sql: str) -> str:
     low = sql.lower()
     parts = []
 
+    # таблицы
     tables = []
     for m in re.finditer(r"\bfrom\s+([a-z_]+)|\bjoin\s+([a-z_]+)", low):
         t = m.group(1) or m.group(2)
         if t and t not in tables:
             tables.append(t)
-    parts.append(f"Таблицы: {', '.join(tables) or '—'}")
 
-    for kw, name in [("join", "JOIN"), ("count(", "COUNT"), ("avg(", "AVG"),
-                     ("sum(", "SUM"), ("group by", "GROUP BY"),
-                     ("order by", "ORDER BY"), ("limit", "LIMIT")]:
-        if kw in low:
-            parts.append(name)
+    # JOIN'ы
+    joins = []
+    for m in re.finditer(r"join\s+([a-z_]+)\s+(?:as\s+)?([a-z_]*)\s*on\s+([a-z_.]+)\s*=\s*([a-z_.]+)", low):
+        joins.append(f"{m.group(3)} = {m.group(4)}")
 
-    return " | ".join(parts)
+    # агрегаты
+    aggs = []
+    for a in ("count", "avg", "sum", "min", "max"):
+        if f"{a}(" in low:
+            aggs.append(a.upper())
 
+    # фильтры
+    filters = []
+    for m in re.finditer(r"where\s+(.+?)(?:\s+group\s+by|\s+order\s+by|\s+limit|$)", low, re.DOTALL):
+        filters.append(m.group(1).strip())
+
+    # ограничения
+    limits = []
+    if "limit" in low:
+        m = re.search(r"limit\s+(\d+)", low)
+        limits.append(f"LIMIT {m.group(1) if m else '100'}")
+    if "order by" in low:
+        limits.append("ORDER BY")
+    if "group by" in low:
+        limits.append("GROUP BY")
+
+    if tables:
+        parts.append(f"📊 Таблицы: {', '.join(tables)}")
+    if joins:
+        parts.append(f"🔗 JOIN: {'; '.join(joins)}")
+    if filters:
+        parts.append(f"🔍 Фильтр: {filters[0][:80]}")
+    if aggs:
+        parts.append(f"📈 Агрегаты: {', '.join(aggs)}")
+    if limits:
+        parts.append(f"⚠️ Ограничения: {', '.join(limits)}")
+
+    return "\n".join(parts)
 
 def _empty_reason(res: dict, sql: str) -> str | None:
     if res["error"]:
