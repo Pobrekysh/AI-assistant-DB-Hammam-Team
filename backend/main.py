@@ -10,6 +10,7 @@ from llm import question_to_sql
 from validator import validate_sql
 from logger import log_question, log_sql, log_blocked, log_error, log_result
 
+
 app = FastAPI(title="University Chat API")
 
 
@@ -40,13 +41,9 @@ def ask(req: AskRequest):
     def elapsed():
         return int((time.time() - start) * 1000)
 
-    # 1. Логируем вопрос
     log_question(question)
 
-    # 2. Получаем схему БД
     schema = get_schema()
-
-    # 3. LLM → SQL
     llm_result = question_to_sql(question, schema)
     if llm_result["error"]:
         log_error(f"LLM: {llm_result['error']}")
@@ -58,7 +55,6 @@ def ask(req: AskRequest):
 
     sql = llm_result["sql"]
 
-    # 4. Валидация SQL
     ok, reason = validate_sql(sql)
     if not ok:
         log_blocked(sql, reason)
@@ -69,7 +65,6 @@ def ask(req: AskRequest):
             elapsed_ms=elapsed(),
         )
 
-    # 5. Выполняем в БД
     db_result = execute_query(sql)
     log_sql(sql)
 
@@ -78,8 +73,7 @@ def ask(req: AskRequest):
     else:
         log_result(len(db_result["rows"]), elapsed())
 
-    # 6. Проверяем на "ничего не найдено"
-    empty_reason = _check_empty_result(db_result, sql)
+    empty_reason = _check_empty_result(db_result, sql, question)
     if empty_reason:
         log_error(empty_reason)
         return AskResponse(
@@ -89,7 +83,6 @@ def ask(req: AskRequest):
             elapsed_ms=elapsed(),
         )
 
-    # 7. Строим объяснение
     explanation = _build_explanation(sql)
 
     return AskResponse(
@@ -104,7 +97,6 @@ def ask(req: AskRequest):
 
 
 def _build_explanation(sql: str) -> str:
-    """Простое объяснение SQL: таблицы, JOIN, агрегаты."""
     sql_lower = sql.lower()
     parts = []
 
@@ -133,21 +125,15 @@ def _build_explanation(sql: str) -> str:
     return " | ".join(parts)
 
 
-def _check_empty_result(db_result: dict, sql: str) -> str | None:
-    """
-    Возвращает текст ошибки, если результат пустой.
-    Иначе None.
-    """
+def _check_empty_result(db_result: dict, sql: str, question: str = "") -> str | None:
     if db_result["error"]:
-        return None  # уже ошибка, обработаем отдельно
+        return None
 
     rows = db_result["rows"]
 
-    # Случай 1: пустой список строк
     if not rows:
         return "По вашему запросу ничего не найдено"
 
-    # Случай 2: единственное значение 0 (COUNT) при наличии WHERE
     if len(rows) == 1 and len(rows[0]) == 1 and rows[0][0] == 0:
         if "where" in sql.lower():
             return (

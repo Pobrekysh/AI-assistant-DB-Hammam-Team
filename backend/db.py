@@ -78,28 +78,58 @@ def execute_query(sql: str, limit: int = DEFAULT_LIMIT) -> dict:
 def get_schema() -> str:
     """
     Возвращает схему БД в виде текста для промпта LLM.
-    Читает таблицы и колонки из information_schema.
+    Читает таблицы, колонки И связи (foreign keys).
     """
     conn = None
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         conn.set_client_encoding('UTF8')
         cursor = conn.cursor()
+
+        # 1. Колонки (без PII)
         cursor.execute("""
             SELECT table_name, column_name, data_type
             FROM information_schema.columns
             WHERE table_schema = 'public'
+              AND column_name NOT IN ('password', 'passport_data', 'passport', 'pwd', 'secret')
             ORDER BY table_name, ordinal_position
         """)
-        rows = cursor.fetchall()
+        columns_rows = cursor.fetchall()
 
         schema = {}
-        for table, column, dtype in rows:
+        for table, column, dtype in columns_rows:
             schema.setdefault(table, []).append(f"{column} ({dtype})")
 
         lines = []
         for table, cols in schema.items():
             lines.append(f"- {table}: {', '.join(cols)}")
+
+        # 2. Связи (foreign keys)
+        cursor.execute("""
+            SELECT
+                tc.table_name AS from_table,
+                kcu.column_name AS from_column,
+                ccu.table_name AS to_table,
+                ccu.column_name AS to_column
+            FROM information_schema.table_constraints AS tc
+            JOIN information_schema.key_column_usage AS kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+            JOIN information_schema.constraint_column_usage AS ccu
+                ON ccu.constraint_name = tc.constraint_name
+                AND ccu.table_schema = tc.table_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+              AND tc.table_schema = 'public'
+            ORDER BY tc.table_name, kcu.column_name
+        """)
+        fk_rows = cursor.fetchall()
+
+        if fk_rows:
+            lines.append("")
+            lines.append("СВЯЗИ МЕЖДУ ТАБЛИЦАМИ (foreign keys):")
+            for from_table, from_column, to_table, to_column in fk_rows:
+                lines.append(f"- {from_table}.{from_column} → {to_table}.{to_column}")
+
         return "\n".join(lines)
 
     except Exception as e:

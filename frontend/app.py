@@ -165,9 +165,9 @@ if question:
             if data.get("columns"):
                 import pandas as pd
                 df = pd.DataFrame(data["rows"], columns=data["columns"])
-                st.dataframe(df, use_container_width=True)
+                st.dataframe(df, use_container_width=True,hide_index=True)
             else:
-                st.dataframe(data["rows"], use_container_width=True)
+                st.dataframe(data["rows"], use_container_width=True,hide_index=True)
         if data.get("explanation"):
             with st.expander("💡 Как построен запрос"):
                 st.write(data["explanation"])

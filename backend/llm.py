@@ -24,6 +24,12 @@ SYSTEM_PROMPT = """Ты — SQL-эксперт для базы данных ун
 любые данные, позволяющие идентифицировать человека).
 Если да — верни ТОЛЬКО слово: NELZYA
 (и больше ничего — ни SQL, ни объяснений).
+ПОЯСНЕНИЯ К ДАННЫМ:
+- teachers.department — НАЗВАНИЕ КАФЕДРЫ
+- grades.subject — НАЗВАНИЕ ПРЕДМЕТА
+...
+ВАЖНО:
+- Преподаватели НЕ связаны с предметами...
 
 ПРАВИЛА:
 1. Используй JOIN ТОЛЬКО когда данные нужны из нескольких таблиц.
@@ -55,6 +61,11 @@ SYSTEM_PROMPT = """Ты — SQL-эксперт для базы данных ун
     включай в SELECT и full_name, и department, чтобы пользователь 
     видел, кто на какой кафедре.
     Пример: SELECT full_name, department FROM teachers LIMIT 100.
+14. Для вопроса «сколько всего X» (уникальных значений) используй 
+    COUNT(DISTINCT X). Для «как называются X» — SELECT DISTINCT X.
+    Пример: «Сколько всего предметов?» → SELECT COUNT(DISTINCT subject) FROM grades
+    Пример: «Как называются предметы?» → SELECT DISTINCT subject FROM grade
+15.- НЕ выдумывай связи между таблицами.
 
 ПРИМЕРЫ ПРАВИЛЬНЫХ SQL:
 
@@ -95,22 +106,50 @@ LIMIT 100
 """
 
 
-def _get_access_token() -> str:
-    """Получает access token от GigaChat OAuth."""
-    headers = {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json",
-        "RqUID": str(uuid.uuid4()),
-        "Authorization": f"Bearer {SBER_KEY}",
-    }
-    response = requests.post(
-        AUTH_URL, headers=headers,
-        data={"scope": "GIGACHAT_API_PERS"},
-        verify=False, timeout=15,
-    )
-    response.raise_for_status()
-    return response.json()["access_token"]
+import threading
+from datetime import datetime, timedelta
 
+# Кэш токена (thread-safe)
+_token_cache = {"token": None, "expires_at": None}
+_token_lock = threading.Lock()
+
+
+def _get_access_token() -> str:
+    """
+    Получает access token от GigaChat OAuth.
+    Кэширует токен на 25 минут (токен живёт 30 минут).
+    Thread-safe.
+    """
+    with _token_lock:
+        now = datetime.now()
+
+        # Если есть валидный токен — используем
+        if (_token_cache["token"]
+                and _token_cache["expires_at"]
+                and now < _token_cache["expires_at"]):
+            return _token_cache["token"]
+
+        # Иначе получаем новый
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+            "RqUID": str(uuid.uuid4()),
+            "Authorization": f"Bearer {SBER_KEY}",
+        }
+        response = requests.post(
+            AUTH_URL, headers=headers,
+            data={"scope": "GIGACHAT_API_PERS"},
+            verify=False, timeout=15,
+        )
+        response.raise_for_status()
+
+        token = response.json()["access_token"]
+
+        # Кэшируем на 25 минут (с запасом)
+        _token_cache["token"] = token
+        _token_cache["expires_at"] = now + timedelta(minutes=25)
+
+        return token
 
 def _extract_sql(text: str):
     """Вытаскивает SQL из ```sql ... ```."""
