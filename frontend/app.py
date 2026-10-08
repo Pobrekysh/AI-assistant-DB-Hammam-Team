@@ -1,175 +1,110 @@
 import streamlit as st
 import requests
 import os
+import pandas as pd
 from dotenv import load_dotenv
 
 from logger import log_question, log_answer
 
-# Загружаем переменные окружения из .env
 load_dotenv()
 
-# Адрес бэкенда. Если Susliqq ещё не поднял /ask — используем MOCK_MODE
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
-MOCK_MODE = os.getenv("MOCK_MODE", "true").lower() == "true"
+BACKEND = os.getenv("BACKEND_URL", "http://localhost:8000")
+MOCK = os.getenv("MOCK_MODE", "false").lower() == "true"
 
-# Настройка страницы
-st.set_page_config(
-    page_title="AI-ассистент БД университета",
-    page_icon="🎓",
-    layout="wide"
-)
-
-# Заголовок
+st.set_page_config(page_title="AI-ассистент БД", page_icon="🎓", layout="wide")
 st.title("🎓 AI-ассистент для работы с БД университета")
-st.caption("Задайте вопрос - ассистент построит SQL-запрос и вернёт результат.")
+st.caption("Задайте вопрос — ассистент построит SQL и вернёт результат.")
 
-# ===== Инициализация истории сообщений =====
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 
-# ===== Функция-заглушка (пока Susliqq не готов) =====
-def mock_ask(question: str) -> dict:
-    """Возвращает фейковый ответ, чтобы фронт можно было разрабатывать параллельно."""
+def _mock(q: str) -> dict:
     return {
-        "sql": f"SELECT COUNT(*) FROM applications\nWHERE program = 'Экономика'\nAND year = 2026\nLIMIT 100;",
+        "sql": "SELECT COUNT(*) FROM applications WHERE program_name ILIKE '%Экономика%' LIMIT 100",
         "columns": ["count"],
         "rows": [[150]],
         "error": None,
-        "explanation": "Использована таблица applications, фильтр по program и year, агрегат COUNT.",
-        "page": 1,
-        "total_pages": 1
+        "explanation": "MOCK-режим",
     }
 
 
-# ===== Функция реального запроса к бэкенду =====
-def real_ask(question: str) -> dict:
-    """Отправляет вопрос на /ask и возвращает JSON-ответ."""
+def _ask(q: str) -> dict:
     try:
-        response = requests.post(
-            f"{BACKEND_URL}/ask",
-            json={"question": question},
-            timeout=30
-        )
-        response.raise_for_status()
-        return response.json()
+        r = requests.post(f"{BACKEND}/ask", json={"question": q}, timeout=30)
+        r.raise_for_status()
+        return r.json()
     except requests.exceptions.ConnectionError:
-        return {
-            "sql": None,
-            "columns": [],
-            "rows": [],
-            "error": f"Не удалось подключиться к бэкенду ({BACKEND_URL}). Проверь, запущен ли FastAPI.",
-            "explanation": None,
-            "page": 1,
-            "total_pages": 1
-        }
+        return {"sql": None, "columns": [], "rows": [], "error": None,
+                "explanation": None,
+                "error": f"Бэкенд недоступен ({BACKEND}). Запущен ли FastAPI?"}
     except requests.exceptions.Timeout:
-        return {
-            "sql": None,
-            "columns": [],
-            "rows": [],
-            "error": "Бэкенд не ответил за 30 секунд. Возможно, запрос слишком тяжёлый.",
-            "explanation": None,
-            "page": 1,
-            "total_pages": 1
-        }
+        return {"sql": None, "columns": [], "rows": [], "error": None,
+                "explanation": None,
+                "error": "Бэкенд не ответил за 30 секунд"}
     except Exception as e:
-        return {
-            "sql": None,
-            "columns": [],
-            "rows": [],
-            "error": f"Ошибка запроса: {str(e)}",
-            "explanation": None,
-            "page": 1,
-            "total_pages": 1
-        }
+        return {"sql": None, "columns": [], "rows": [], "error": None,
+                "explanation": None,
+                "error": f"Ошибка запроса: {e}"}
 
 
-# ===== Основная функция =====
-def ask(question: str) -> dict:
-    """В MOCK_MODE — заглушка, иначе — реальный запрос."""
-    if MOCK_MODE:
-        return mock_ask(question)
-    return real_ask(question)
+def ask(q: str) -> dict:
+    return _mock(q) if MOCK else _ask(q)
 
 
-# ===== Боковая панель =====
+def render(d: dict):
+    if d.get("error"):
+        st.error(f"❌ {d['error']}")
+    if d.get("sql"):
+        st.markdown("**SQL:**")
+        st.code(d["sql"], language="sql")
+    if d.get("rows"):
+        st.markdown("**Результат:**")
+        if d.get("columns"):
+            st.dataframe(pd.DataFrame(d["rows"], columns=d["columns"]),
+                         use_container_width=True, hide_index=True)
+        else:
+            st.dataframe(d["rows"], use_container_width=True, hide_index=True)
+    if d.get("explanation"):
+        with st.expander("💡 Как построен запрос"):
+            st.write(d["explanation"])
+
+
+# боковая панель
 with st.sidebar:
     st.header("⚙️ Настройки")
-    st.write(
-        f"**Режим:** {'🧪 MOCK (заглушка)' if MOCK_MODE else '🔌 REAL (бэкенд)'}")
-    st.write(f"**Backend URL:** `{BACKEND_URL}`")
-
+    st.write(f"**Режим:** {'🧪 MOCK' if MOCK else '🔌 REAL'}")
+    st.write(f"**Backend:** `{BACKEND}`")
     if st.button("🗑️ Очистить историю"):
         st.session_state.messages = []
         st.rerun()
-
-    st.divider()
     st.caption("Прототип для чемпионата Газпромбанка")
 
 
-# ===== Отображение истории =====
+# история сообщений
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         if msg["role"] == "user":
             st.write(msg["content"])
         else:
-            # Ответ ассистента
-            data = msg["content"]
-            if data.get("error"):
-                st.error(f"❌ {data['error']}")
-            if data.get("sql"):
-                st.markdown("**Сгенерированный SQL:**")
-                st.code(data["sql"], language="sql")
-            if data.get("rows"):
-                st.markdown("**Результат:**")
-                st.dataframe(data["rows"], use_container_width=True)
-            if data.get("explanation"):
-                with st.expander("💡 Как построен запрос"):
-                    st.write(data["explanation"])
+            render(msg["content"])
 
 
-# ===== Поле ввода =====
-question = st.chat_input(
-    "Введите вопрос, например: Сколько заявлений на Экономику в 2026 году?")
+# поле ввода
+q = st.chat_input("Введите вопрос…")
 
-if question:
-    # 1. Добавляем сообщение пользователя
-    st.session_state.messages.append({"role": "user", "content": question})
+if q:
+    st.session_state.messages.append({"role": "user", "content": q})
     with st.chat_message("user"):
-        st.write(question)
+        st.write(q)
 
-    log_question(question)
+    log_question(q)
 
-    # 2. Показываем индикатор загрузки и получаем ответ
     with st.chat_message("assistant"):
-        with st.spinner("Ассистент думает..."):
-            data = ask(question)
+        with st.spinner("Думаю…"):
+            d = ask(q)
 
-        log_answer(
-            question,
-            data.get("sql", ""),
-            len(data.get("rows", [])),
-            data.get("error")
-        )
+        log_answer(q, d.get("sql", ""), len(d.get("rows", [])), d.get("error"))
+        render(d)
 
-        # 3. Отображаем ответ
-        if data.get("error"):
-            st.error(f"❌ {data['error']}")
-        if data.get("sql"):
-            st.markdown("**Сгенерированный SQL:**")
-            st.code(data["sql"], language="sql")
-        if data.get("rows"):
-            st.markdown("**Результат:**")
-            # Streamlit плохо переваривает rows без колонок — сделаем словарями
-            if data.get("columns"):
-                import pandas as pd
-                df = pd.DataFrame(data["rows"], columns=data["columns"])
-                st.dataframe(df, use_container_width=True,hide_index=True)
-            else:
-                st.dataframe(data["rows"], use_container_width=True,hide_index=True)
-        if data.get("explanation"):
-            with st.expander("💡 Как построен запрос"):
-                st.write(data["explanation"])
-    # 4. Сохраняем ответ в историю
-    st.session_state.messages.append({"role": "assistant", "content": data})
+    st.session_state.messages.append({"role": "assistant", "content": d})

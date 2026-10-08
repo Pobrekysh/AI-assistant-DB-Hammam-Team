@@ -1,33 +1,24 @@
 import re
 from typing import Tuple
 
-# Таблицы, к которым РАЗРЕШЕНО обращаться
-WHITELIST_TABLES = {
-    "faculties",
-    "teachers",
-    "student_groups",
-    "applications",
-    "grades",
-}
+# только эти таблицы разрешены
+OK_TABLES = {"faculties", "teachers", "student_groups", "applications", "grades"}
 
-# Таблицы, к которым НЕЛЬЗЯ
-BLACKLIST_TABLES = {
-    "users", "passwords", "auth", "sessions",
-    "personal_data", "pg_shadow", "pg_user",
-}
+# системные и чужие — запрещены
+BAD_TABLES = {"users", "passwords", "auth", "sessions", "personal_data",
+              "pg_shadow", "pg_user"}
 
-# Whitelist КОЛОНОК по каждой таблице.
-# password и passport_data НЕ включены — это персональные данные.
-ALLOWED_COLUMNS = {
-    "faculties": {"id", "name"},
-    "teachers": {"id", "full_name", "department"},
+# password / passport_data не включены — это PII
+OK_COLUMNS = {
+    "faculties":      {"id", "name"},
+    "teachers":       {"id", "full_name", "department"},
     "student_groups": {"id", "group_name", "faculty_id"},
-    "applications": {"id", "program_name", "application_year", "status"},
-    "grades": {"id", "group_id", "subject", "grade", "semester"},
+    "applications":   {"id", "program_name", "application_year", "status"},
+    "grades":         {"id", "group_id", "subject", "grade", "semester"},
 }
 
-# Запрещённые ключевые слова
-FORBIDDEN_KEYWORDS = {
+# ищем подстрокой — ловит и "drop", и "drop_table"
+BAD_WORDS = {
     "insert", "update", "delete", "drop", "alter", "create",
     "truncate", "grant", "revoke", "copy", "vacuum", "analyze",
     "execute", "call", "do", "merge", "replace", "lock",
@@ -35,11 +26,11 @@ FORBIDDEN_KEYWORDS = {
     "--", "/*", "*/",
 }
 
-# SQL-ключевые слова, которые не являются колонками
-SQL_KEYWORDS = {
-    "select", "from", "where", "join", "on", "and", "or",
-    "as", "limit", "group", "by", "order", "desc", "asc",
-    "having", "inner", "left", "right", "outer", "full",
+# служебные слова SQL — не колонки, при проверке пропускаем
+SQL_WORDS = {
+    "select", "from", "where", "join", "on", "and", "or", "as", "limit",
+    "group", "by", "order", "desc", "asc", "having",
+    "inner", "left", "right", "outer", "full",
     "count", "avg", "sum", "min", "max", "distinct",
     "ilike", "like", "in", "not", "null", "is", "between",
     "union", "all", "case", "when", "then", "else", "end",
@@ -47,93 +38,68 @@ SQL_KEYWORDS = {
 
 
 def validate_sql(sql: str) -> Tuple[bool, str]:
-    """
-    Проверяет SQL на безопасность.
-    Возвращает:
-        (True, "") — запрос безопасен
-        (False, "причина") — запрос отклонён
-    """
     if not sql or not sql.strip():
         return False, "Пустой SQL-запрос"
 
-    sql_lower = sql.lower().strip()
+    low = sql.lower().strip()
 
-    # 1. Только SELECT
-    first_word = sql_lower.split()[0] if sql_lower.split() else ""
-    if first_word != "select":
-        return False, f"Разрешены только SELECT-запросы. Получено: {first_word.upper()}"
+    first = low.split()[0] if low.split() else ""
+    if first != "select":
+        return False, f"Разрешены только SELECT. Получено: {first.upper()}"
 
-    # 2. Нет запрещённых ключевых слов
-    for kw in FORBIDDEN_KEYWORDS:
-        if kw in sql_lower:
-            return False, f"Обнаружено запрещённое выражение: {kw}"
+    for w in BAD_WORDS:
+        if w in low:
+            return False, f"Запрещённое выражение: {w}"
 
-    # 3. Нет множественных запросов через ;
-    if sql_lower.rstrip(";").count(";") > 0:
+    if low.rstrip(";").count(";") > 0:
         return False, "Множественные SQL-запросы запрещены"
 
-    # 4. Проверка таблиц на whitelist/blacklist
-    tables = extract_tables(sql_lower)
+    tables = get_tables(low)
     if not tables:
-        return False, "Не удалось определить таблицы в запросе"
+        return False, "Не удалось определить таблицы"
 
     for t in tables:
-        if t in BLACKLIST_TABLES:
-            return False, f"Доступ к таблице '{t}' запрещён"
-        if t not in WHITELIST_TABLES:
-            return False, f"Таблица '{t}' не входит в разрешённый список"
+        if t in BAD_TABLES:
+            return False, f"Таблица '{t}' запрещена"
+        if t not in OK_TABLES:
+            return False, f"Таблица '{t}' не в whitelist"
 
-    # 5. Проверка колонок на whitelist
-    allowed = set()
+    ok = set()
     for t in tables:
-        allowed |= ALLOWED_COLUMNS.get(t, set())
+        ok |= OK_COLUMNS.get(t, set())
 
-    aliases = extract_aliases(sql_lower)
-    columns = extract_columns(sql_lower)
-
-    for col in columns:
-        if col in SQL_KEYWORDS:
+    aliases = get_aliases(low)
+    for c in get_words(low):
+        if c in SQL_WORDS or c in tables or c in aliases or len(c) == 1:
             continue
-        if col in tables:
-            continue
-        if col in aliases:
-            continue
-        if len(col) == 1:
-            continue
-        if col not in allowed:
-            return False, f"Колонка '{col}' не входит в разрешённый список"
+        if c not in ok:
+            return False, f"Колонка '{c}' не в whitelist"
 
     return True, ""
 
 
-def extract_tables(sql_lower: str) -> set:
-    """Вытаскивает имена таблиц после FROM и JOIN."""
-    tables = set()
-    for m in re.finditer(r"\bfrom\s+([a-z_][a-z0-9_]*)", sql_lower):
-        tables.add(m.group(1))
-    for m in re.finditer(r"\bjoin\s+([a-z_][a-z0-9_]*)", sql_lower):
-        tables.add(m.group(1))
-    return tables
+def get_tables(low: str) -> set:
+    t = set()
+    for m in re.finditer(r"\bfrom\s+([a-z_][a-z0-9_]*)", low):
+        t.add(m.group(1))
+    for m in re.finditer(r"\bjoin\s+([a-z_][a-z0-9_]*)", low):
+        t.add(m.group(1))
+    return t
 
 
-def extract_aliases(sql_lower: str) -> set:
-    """Извлекает алиасы: FROM table alias / JOIN table alias."""
-    aliases = set()
-    for m in re.finditer(r"\b(?:from|join)\s+[a-z_][a-z0-9_]*\s+([a-z_][a-z0-9_]*)", sql_lower):
+def get_aliases(low: str) -> set:
+    """FROM grades g / JOIN student_groups sg → {g, sg}"""
+    a = set()
+    for m in re.finditer(r"\b(?:from|join)\s+[a-z_][a-z0-9_]*\s+([a-z_][a-z0-9_]*)", low):
         alias = m.group(1)
-        if alias not in SQL_KEYWORDS:
-            aliases.add(alias)
-    return aliases
+        if alias not in SQL_WORDS:
+            a.add(alias)
+    return a
 
 
-def extract_columns(sql_lower: str) -> set:
-    """Извлекает идентификаторы, исключая строковые литералы."""
-    sql_clean = re.sub(r"'[^']*'", "", sql_lower)
-    words = re.findall(r"\b[a-z_][a-z0-9_]*\b", sql_clean)
-    tables = extract_tables(sql_clean)
-    result = set()
-    for w in words:
-        if w in tables:
-            continue
-        result.add(w)
-    return result
+def get_words(low: str) -> set:
+    # убираем строки в кавычках — это значения, не колонки
+    clean = re.sub(r"'[^']*'", "", low)
+    words = re.findall(r"\b[a-z_][a-z0-9_]*\b", clean)
+    tables = get_tables(clean)
+    return {w for w in words if w not in tables}

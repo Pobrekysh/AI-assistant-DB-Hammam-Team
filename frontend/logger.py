@@ -1,25 +1,23 @@
 import logging
 import os
-from datetime import datetime
 
-LOG_DIR = "logs"
-os.makedirs(LOG_DIR, exist_ok=True)
+os.makedirs("logs", exist_ok=True)
 
+# без encoding='utf-8' кириллица на Windows ломается
 logging.basicConfig(
-    filename=os.path.join(LOG_DIR, "frontend.log"),
+    filename=os.path.join("logs", "frontend.log"),
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
-    encoding="utf-8"
+    encoding="utf-8",
 )
 
 
-def log_question(question: str):
-    logging.info(f"QUESTION: {question}")
+def log_question(q):
+    logging.info(f"QUESTION: {q}")
 
 
-def log_answer(question: str, sql: str, rows_count: int, error: str = None):
-    if error:
-        logging.info(f"ANSWER_ERROR: q='{question}' | error='{error}'")
+def log_answer(q, sql, rows, err=None):
+    if err:
+        logging.info(f"ANSWER_ERR: q='{q}' | err='{err}'")
     else:
-        logging.info(
-            f"ANSWER_OK: q='{question}' | sql='{sql}' | rows={rows_count}")
+        logging.info(f"ANSWER_OK: q='{q}' | sql='{sql}' | rows={rows}")
